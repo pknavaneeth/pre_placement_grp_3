@@ -7,9 +7,13 @@
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.2.0",
     "nodemon": "^2.0.15"
-  },
+  }, 
   "name": "wileyproject",
   "version": "1.0.0",
+  "engines":{
+    "npm":"7.15.0",
+    "node":"14.15.0"
+  },
   "main": "index.js",
   "devDependencies": {},
   "scripts": {
