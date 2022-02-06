@@ -2,9 +2,6 @@ const mongoose = require("mongoose");
 
 const questionSchema = mongoose.Schema(
   {
-    _id: {
-      type: mongoose.Types.ObjectId,
-    },
     question: {
       type: String,
       required: true,
