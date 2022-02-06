@@ -7,9 +7,11 @@ const User = require("./models/User");
 const Question = require("./models/Questions");
 const Answer = require("./models/Answers.js");
 const { auth, authGenerator } = require("./middleware/auth");
+const cors = require("cors");
 
 const app = express();
 // app use
+app.use(cors());
 app.use(bodyparser.urlencoded({ extended: false }));
 app.use(bodyparser.json());
 app.use(cookieParser());
