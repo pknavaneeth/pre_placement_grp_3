@@ -20,6 +20,31 @@ let auth = (req, res, next) => {
   }
 };
 
+let authWithHeader = (req, res, next) => {
+  try {
+    let authHeader = req.headers.authorization;
+    console.log("Auth Header : ", authHeader);
+    let splittedHeader = authHeader.split(" ");
+    if (splittedHeader.length !== 2) {
+      return res.status(400).send({ error: true, message: "JSON Malformed" });
+    }
+    if (!splittedHeader[1])
+      return res.status(400).send({ error: true, message: "Token required" });
+    User.findByToken(splittedHeader[1], (err, user) => {
+      if (err) throw err;
+      if (!user)
+        return res.json({
+          error: true,
+        });
+      req.token = splittedHeader[1];
+      req.user = user;
+      next();
+    });
+  } catch (error) {
+    res.status(500).json({ error: true, message: error.message });
+  }
+};
+
 const authGenerator = (role) => {
   return (req, res, next) => {
     try {
@@ -34,4 +59,4 @@ const authGenerator = (role) => {
     }
   };
 };
-module.exports = { auth, authGenerator };
+module.exports = { auth, authGenerator, authWithHeader };

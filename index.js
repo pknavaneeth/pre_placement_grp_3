@@ -6,11 +6,13 @@ const db = require("./config").get(process.env.NODE_ENV);
 const User = require("./models/User");
 const Question = require("./models/Questions");
 const Answer = require("./models/Answers.js");
-const { auth, authGenerator } = require("./middleware/auth");
+const { auth, authGenerator, authWithHeader } = require("./middleware/auth");
 const cors = require("cors");
+const morgan = require("morgan");
 
 const app = express();
 // app use
+app.use(morgan("combined"));
 app.use(cors());
 app.use(bodyparser.urlencoded({ extended: false }));
 app.use(bodyparser.json());
@@ -32,7 +34,7 @@ app.get("/", function (req, res) {
 });
 
 // listening port
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`app is live at ${PORT}`);
 });
@@ -235,7 +237,7 @@ app.post(
 //api to post answer for seniors
 app.get(
   "/api/get-question-answers",
-  auth,
+  authWithHeader,
   authGenerator("Junior"),
   async function (req, res) {
     try {
@@ -254,8 +256,9 @@ app.get(
       let pageNo = queryParams.pageNo;
       let perPage = queryParams.perPage;
       let count = await Question.find(query).countDocuments();
-      let noOfPages = count / perPage;
-      if (pageNo > noOfPages)
+      // console.log(count);
+      let noOfPages = Math.ceil(count / perPage);
+      if (pageNo > noOfPages && pageNo !== 1)
         return res
           .status(400)
           .send({ error: true, message: "Page not available" });
