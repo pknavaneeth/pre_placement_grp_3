@@ -176,7 +176,7 @@ app.get("/api/listcompanies", auth, function (req, res) {
 //api to post questions for students
 app.post(
   "/api/post-question",
-  auth,
+  authWithHeader,
   authGenerator("Junior"),
   function (req, res) {
     try {

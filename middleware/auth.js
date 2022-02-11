@@ -23,7 +23,7 @@ let auth = (req, res, next) => {
 let authWithHeader = (req, res, next) => {
   try {
     let authHeader = req.headers.authorization;
-    console.log("Auth Header : ", authHeader);
+    // console.log("Auth Header : ", authHeader);
     let splittedHeader = authHeader.split(" ");
     if (splittedHeader.length !== 2) {
       return res.status(400).send({ error: true, message: "JSON Malformed" });
