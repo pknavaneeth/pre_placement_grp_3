@@ -112,7 +112,7 @@ app.get("/api/profile", authWithHeader, function (req, res) {
 });
 
 //logout user
-app.get("/api/logout", auth, function (req, res) {
+app.get("/api/logout", authWithHeader, function (req, res) {
   req.user.deleteToken(req.token, (err, user) => {
     if (err) return res.status(400).send(err);
     res.sendStatus(200);
