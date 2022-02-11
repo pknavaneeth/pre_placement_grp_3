@@ -88,10 +88,12 @@ app.post("/api/login", function (req, res) {
 
       user.generateToken((err, user) => {
         if (err) return res.status(400).send(err);
-        res.cookie("auth", user.token).json({
+        res.status(200).json({
           isAuth: true,
           id: user._id,
           email: user.email,
+          token: user.token,
+          role: user.role,
         });
       });
     });
@@ -99,12 +101,13 @@ app.post("/api/login", function (req, res) {
 });
 
 // get logged in user
-app.get("/api/profile", auth, function (req, res) {
-  res.json({
+app.get("/api/profile", authWithHeader, function (req, res) {
+  res.status(200).json({
     isAuth: true,
     id: req.user._id,
     email: req.user.email,
     name: req.user.firstname + req.user.lastname,
+    role: req.user.role,
   });
 });
 
@@ -119,7 +122,7 @@ app.get("/api/logout", auth, function (req, res) {
 //api to create junior user credentials
 app.post(
   "/api/lecturer/onboard-junior",
-  auth,
+  authWithHeader,
   authGenerator("Lecturer"),
   function (req, res) {
     try {
@@ -147,7 +150,7 @@ app.post(
 //api to show list of junior accounts to Lecturer
 app.get(
   "/api/list-juniors",
-  auth,
+  authWithHeader,
   authGenerator("Lecturer"),
   function (req, res) {
     try {
@@ -162,7 +165,7 @@ app.get(
 );
 
 //api to show list of companies
-app.get("/api/listcompanies", auth, function (req, res) {
+app.get("/api/listcompanies", authWithHeader, function (req, res) {
   try {
     User.find({}).distinct("companyName", (err, companies) => {
       if (err) throw err;
@@ -201,7 +204,7 @@ app.post(
 //api to post answer for seniors
 app.post(
   "/api/post-answer",
-  auth,
+  authWithHeader,
   authGenerator("Senior"),
   async function (req, res) {
     try {
