@@ -4,6 +4,9 @@ const bodyparser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const db = require("./config").get(process.env.NODE_ENV);
 const User = require("./models/User");
+const Companies = require("./models/Companies.js");
+const Answers = require("./models/Answers.js");
+const DriveCompanies = require("./models/Drive-Companies.js");
 const Question = require("./models/Questions");
 const Answer = require("./models/Answers.js");
 const { auth, authGenerator, authWithHeader } = require("./middleware/auth");
@@ -70,7 +73,7 @@ app.post("/api/register", function (req, res) {
   });
 });
 
-// login user
+// login for any user
 app.post("/api/login", function (req, res) {
   User.findOne({ email: req.body.email }, function (err, user) {
     if (!user)
@@ -100,7 +103,7 @@ app.post("/api/login", function (req, res) {
   });
 });
 
-// get logged in user
+// get logged in user profile
 app.get("/api/profile", authWithHeader, function (req, res) {
   res.status(200).json({
     isAuth: true,
@@ -151,32 +154,37 @@ app.post(
 app.get(
   "/api/list-juniors",
   authWithHeader,
-  authGenerator("Lecturer"),
+  authGenerator(["Lecturer", "PO"]),
   function (req, res) {
     try {
       User.find({ role: "Junior" }, (err, juniors) => {
         if (err) throw err;
         return res.status(200).json({ juniors });
-      }).select("email firstname lastname createdAt -_id");
+      }).select("email firstname lastname createdAt");
     } catch (err) {
       res.status(500).json({ error: true, message: error.message });
     }
   }
 );
 
-//api to show list of companies
-app.get("/api/listcompanies", authWithHeader, function (req, res) {
+//api to show list of companies participating in drive (api for placement officer and junior)
+app.get("/api/listcompanies", authWithHeader, async function (req, res) {
   try {
-    User.find({}).distinct("companyName", (err, companies) => {
-      if (err) throw err;
-      return res.status(200).json({ companies });
+    let companyList = await DriveCompanies.find().populate({
+      path: "companyId",
+      select: "-_id",
     });
-  } catch (err) {
+    let companyArray = [];
+    companyList.forEach((value) => {
+      companyArray.push(value.companyId.companyName);
+    });
+    return res.status(200).send(companyArray);
+  } catch (error) {
     res.status(500).json({ error: true, message: error.message });
   }
 });
 
-//api to post questions for students
+//api to post questions for juniors
 app.post(
   "/api/post-question",
   authWithHeader,
@@ -195,6 +203,56 @@ app.post(
           user: doc,
         });
       });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+//api to see questions and answers for juniors
+app.get(
+  "/api/get-question-answers",
+  authWithHeader,
+  authGenerator("Junior"),
+  async function (req, res) {
+    try {
+      let queryParams = req.query;
+      let query = {};
+      if (queryParams.showAll === "false") {
+        query = {
+          raisedBy: req.user._id,
+        };
+      }
+      let sortBy = queryParams.sortBy;
+      let sortOrder = 1;
+      if (queryParams.sortOrder == "des") sortOrder = -1;
+      let sortObject = {};
+      if (sortBy) sortObject[sortBy] = sortOrder;
+      let pageNo = queryParams.pageNo;
+      let perPage = queryParams.perPage;
+      let count = await Question.find(query).countDocuments();
+      // console.log(count);
+      let noOfPages = Math.ceil(count / perPage);
+      if (pageNo > noOfPages && pageNo != 1)
+        return res
+          .status(400)
+          .send({ error: true, message: "Page not available" });
+      let skip = perPage * (pageNo - 1);
+      let questions = await Question.find(query)
+        .populate({ path: "raisedBy", select: "firstname lastname -_id" })
+        .populate({
+          path: "answers",
+          match: { status: "Approved" },
+          populate: { path: "authorId", select: "firstname lastname -_id" },
+          select: "-__v",
+        })
+        .select("-__v")
+        .sort(sortObject)
+        .limit(perPage)
+        .skip(skip);
+      return res
+        .status(200)
+        .json({ status: true, questions, pageNo, noOfPages });
     } catch (error) {
       res.status(500).json({ error: true, message: error.message });
     }
@@ -237,31 +295,26 @@ app.post(
   }
 );
 
-//api to post answer for seniors
+//api to view question and answers for seniors
 app.get(
-  "/api/get-question-answers",
+  "/api/senior/view-questions",
   authWithHeader,
-  authGenerator("Junior"),
+  authGenerator("Senior"),
   async function (req, res) {
     try {
       let queryParams = req.query;
       let query = {};
-      if (queryParams.showAll === "false") {
-        query = {
-          raisedBy: req.user._id,
-        };
-      }
       let sortBy = queryParams.sortBy;
       let sortOrder = 1;
+      query.companyName = req.user.companyName;
       if (queryParams.sortOrder == "des") sortOrder = -1;
       let sortObject = {};
       if (sortBy) sortObject[sortBy] = sortOrder;
       let pageNo = queryParams.pageNo;
       let perPage = queryParams.perPage;
       let count = await Question.find(query).countDocuments();
-      // console.log(count);
       let noOfPages = Math.ceil(count / perPage);
-      if (pageNo > noOfPages && pageNo !== 1)
+      if (pageNo > noOfPages && pageNo != 1)
         return res
           .status(400)
           .send({ error: true, message: "Page not available" });
@@ -270,7 +323,7 @@ app.get(
         .populate({ path: "raisedBy", select: "firstname lastname -_id" })
         .populate({
           path: "answers",
-          match: { status: "Accepted" },
+          match: { authorId: req.user._id },
           populate: { path: "authorId", select: "firstname lastname -_id" },
           select: "-__v",
         })
@@ -281,6 +334,199 @@ app.get(
       return res
         .status(200)
         .json({ status: true, questions, pageNo, noOfPages });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+var validStatus = ["Approved", "Rejected", "Pending"];
+// Api to view pending answers for faculty users
+app.get(
+  "/api/faculty/view-answers",
+  authWithHeader,
+  authGenerator("Lecturer"),
+  async function (req, res) {
+    try {
+      let queryParams = req.query;
+      let query = {};
+      if (queryParams.status) {
+        if (!validStatus.includes(queryParams.status))
+          return res.status(400).send({
+            error: true,
+            message: `Status ${queryParams.status} is invalid`,
+          });
+        query.status = queryParams.status;
+      }
+      let sortBy = queryParams.sortBy;
+      let sortOrder = 1;
+      query.companyName = req.user.companyName;
+      if (queryParams.sortOrder == "des") sortOrder = -1;
+      let sortObject = {};
+      if (sortBy) sortObject[sortBy] = sortOrder;
+      let pageNo = queryParams.pageNo;
+      let perPage = queryParams.perPage;
+      let count = await Answers.find(query).countDocuments();
+      let noOfPages = Math.ceil(count / perPage);
+      if (pageNo > noOfPages && pageNo != 1)
+        return res
+          .status(400)
+          .send({ error: true, message: "Page not available" });
+      let skip = perPage * (pageNo - 1);
+      let answers = await Answers.find(query)
+        .populate({ path: "authorId", select: "firstname lastname -_id" })
+        .populate({
+          path: "questionId",
+          populate: { path: "raisedBy", select: "firstname lastname -_id" },
+          select: "-__v",
+        })
+        .select("-__v")
+        .sort(sortObject)
+        .limit(perPage)
+        .skip(skip);
+      return res.status(200).json({ status: true, answers, pageNo, noOfPages });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+// Approve answer by Lecturer
+app.post(
+  "/api/faculty/answer-change-status",
+  authWithHeader,
+  authGenerator("Lecturer"),
+  async function (req, res) {
+    try {
+      let payload = req.body;
+      if (!payload.answerId || !payload.status)
+        return res
+          .status(400)
+          .send({ error: true, message: "Invalid payload" });
+      if (!validStatus.includes(payload.status))
+        return res.status(400).send({
+          error: true,
+          message: `Status ${payload.status} is invalid`,
+        });
+      let answer = await Answer.findById(payload.answerId);
+      if (!answer)
+        return res.status(404).send({
+          error: true,
+          message: "Answer Id is invalid",
+        });
+      if (answer.status == payload.status)
+        return res.status(400).send({
+          error: true,
+          message: "Status same as requested",
+        });
+      answer.status = payload.status;
+      let response = await answer.save();
+      return res.status(200).send({ status: true, data: response });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+// Api for placement officer to get all registered companies
+app.get(
+  "/api/allcompanies",
+  authWithHeader,
+  authGenerator("PO"),
+  async function (req, res) {
+    try {
+      let companyList = await Companies.find().lean();
+      // let companyArray = [];
+      // companyList.forEach((value) => {
+      //   companyArray.push(value.companyName);
+      // });
+      return res.status(200).send({ status: true, companyList });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+// Api for placement officer to add companies to drive
+app.get(
+  "/api/companiesfordrive/:companyId",
+  authWithHeader,
+  authGenerator("PO"),
+  async function (req, res) {
+    try {
+      let companyId = mongoose.Types.ObjectId.createFromHexString(
+        req.params.companyId
+      );
+      let company = await Companies.findById(companyId);
+      if (!company)
+        return res
+          .status(404)
+          .json({ error: true, message: "Company not found" });
+      let driveCompanies = await DriveCompanies.findOne({ companyId });
+      if (driveCompanies)
+        return res
+          .status(400)
+          .json({ error: true, message: "Company already added" });
+      let newInsert = await DriveCompanies.create({ companyId });
+      return res.status(201).send({ status: true, newInsert });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+// Api for placement officer to delete companies to drive
+app.delete(
+  "/api/companiesfordrive/:companyId",
+  authWithHeader,
+  authGenerator("PO"),
+  async function (req, res) {
+    try {
+      let companyId = mongoose.Types.ObjectId.createFromHexString(
+        req.params.companyId
+      );
+      let company = await Companies.findById(companyId);
+      if (!company)
+        return res
+          .status(404)
+          .json({ error: true, message: "Company not found" });
+      let driveCompanies = await DriveCompanies.findOne({ companyId });
+      if (!driveCompanies)
+        return res
+          .status(400)
+          .json({ error: true, message: "Company already removed" });
+      let deleteStatus = await DriveCompanies.findOneAndDelete({ companyId });
+      return res.status(201).send({ status: true, deleteStatus });
+    } catch (error) {
+      res.status(500).json({ error: true, message: error.message });
+    }
+  }
+);
+
+app.post(
+  "/api/po/convert-to-senior",
+  authWithHeader,
+  authGenerator("PO"),
+  async function (req, res) {
+    try {
+      let body = req.body;
+      if (!body.userId || !body.companyName)
+        return res
+          .status(400)
+          .send({ error: true, message: "Invalid request body" });
+      let userDetails = await User.findById(
+        mongoose.Types.ObjectId.createFromHexString(body.userId)
+      );
+      if (!userDetails)
+        return res.status(404).send({ error: true, message: "User not found" });
+      if (userDetails.role !== "Junior")
+        return res
+          .status(404)
+          .send({ error: true, message: "User is not a junior" });
+      userDetails.role = "Senior";
+      userDetails.companyName = body.companyName;
+      let upgradeStatus = await userDetails.save();
+      return res.status(200).send({ status: true, upgradeStatus });
     } catch (error) {
       res.status(500).json({ error: true, message: error.message });
     }

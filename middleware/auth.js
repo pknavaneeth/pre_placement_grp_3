@@ -24,9 +24,19 @@ let authWithHeader = (req, res, next) => {
   try {
     let authHeader = req.headers.authorization;
     // console.log("Auth Header : ", authHeader);
+    if (!authHeader)
+      return res.status(400).send({ error: true, message: "Token required" });
     let splittedHeader = authHeader.split(" ");
     if (splittedHeader.length !== 2) {
-      return res.status(400).send({ error: true, message: "JSON Malformed" });
+      return res
+        .status(400)
+        .send({ error: true, message: "Auth Header Malformed" });
+    }
+    if (splittedHeader[0] !== "Bearer") {
+      return res.status(400).send({
+        error: true,
+        message: "Authorization Header should start with Bearer",
+      });
     }
     if (!splittedHeader[1])
       return res.status(400).send({ error: true, message: "Token required" });
@@ -48,10 +58,13 @@ let authWithHeader = (req, res, next) => {
 const authGenerator = (role) => {
   return (req, res, next) => {
     try {
-      if (req.user.role !== role)
+      if (!role.includes(req.user.role))
         return res.status(401).send({
           error: true,
-          message: "Unauthorized Access, API restricted to " + role + " users.",
+          message:
+            "Unauthorized Access, API restricted to " +
+            role.toString() +
+            " users.",
         });
       next();
     } catch (error) {
