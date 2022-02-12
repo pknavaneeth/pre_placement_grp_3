@@ -18,7 +18,7 @@ const AnswerSchema = mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "Approved"],
+      enum: ["Pending", "Approved", "Rejected"],
       required: true,
     },
   },
