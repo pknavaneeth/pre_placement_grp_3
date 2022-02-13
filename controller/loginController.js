@@ -30,32 +30,37 @@ const signUpController = function (req, res) {
 };
 
 const loginController = function (req, res) {
-  User.findOne({ email: req.body.email }, function (err, user) {
-    if (!user)
-      return res.json({
-        isAuth: false,
-        message: " Auth failed ,email not found",
-      });
-
-    user.comparepassword(req.body.password, (err, isMatch) => {
-      if (!isMatch)
+  try {
+    User.findOne({ email: req.body.email }, function (err, user) {
+      if (!user)
         return res.json({
           isAuth: false,
-          message: "password doesn't match",
+          message: " Auth failed ,email not found",
         });
 
-      user.generateToken((err, user) => {
-        if (err) return res.status(400).send(err);
-        res.status(200).json({
-          isAuth: true,
-          id: user._id,
-          email: user.email,
-          token: user.token,
-          role: user.role,
+      user.comparepassword(req.body.password, (err, isMatch) => {
+        if (!isMatch)
+          return res.json({
+            isAuth: false,
+            message: "password doesn't match",
+          });
+
+        user.generateToken((err, user) => {
+          if (err) return res.status(400).send(err);
+          res.status(200).json({
+            isAuth: true,
+            id: user._id,
+            email: user.email,
+            token: user.token,
+            role: user.role,
+            companyName: user.companyName,
+          });
         });
       });
     });
-  });
+  } catch (error) {
+    res.status(500).json({ error: true, message: error.message });
+  }
 };
 
 const profileController = function (req, res) {
