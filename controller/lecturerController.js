@@ -26,10 +26,21 @@ const onBoardJuniorsController = function (req, res) {
 
 const listJuniorsController = function (req, res) {
   try {
-    User.find({ role: "Junior" }, (err, juniors) => {
+    let queryParams = req.query;
+    let validRoles = ["Junior", "Senior"];
+    if (!queryParams.role) {
+      res.status(400).json({ error: true, message: "role required" });
+    }
+    if (!validRoles.includes(queryParams.role)) {
+      res.status(400).json({
+        error: true,
+        message: `Invalid role, only ${validRoles.toString()} are accepted.`,
+      });
+    }
+    User.find({ role: queryParams.role }, (err, juniors) => {
       if (err) throw err;
       return res.status(200).json({ juniors });
-    }).select("email firstname lastname createdAt");
+    }).select("email firstname lastname createdAt role companyName");
   } catch (err) {
     res.status(500).json({ error: true, message: error.message });
   }
