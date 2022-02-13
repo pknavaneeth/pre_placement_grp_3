@@ -64,13 +64,18 @@ const loginController = function (req, res) {
 };
 
 const profileController = function (req, res) {
-  res.status(200).json({
-    isAuth: true,
-    id: req.user._id,
-    email: req.user.email,
-    name: req.user.firstname + req.user.lastname,
-    role: req.user.role,
-  });
+  try {
+    res.status(200).json({
+      isAuth: true,
+      id: req.user._id,
+      email: req.user.email,
+      name: req.user.firstname + req.user.lastname,
+      role: req.user.role,
+      companyName: req.user.companyName,
+    });
+  } catch (error) {
+    res.status(500).json({ error: true, message: error.message });
+  }
 };
 
 const logoutController = function (req, res) {
